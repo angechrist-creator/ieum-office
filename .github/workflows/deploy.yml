@@ -30,7 +30,8 @@ jobs:
         run: |
           cd apps/docs
           npm install --legacy-peer-deps
-          npx vite build src/renderer --base=./ --outDir=../../dist
+          npx vite build src/renderer --base=./ --outDir=${{ github.workspace }}/dist
+          ls -la ${{ github.workspace }}/dist
 
       - name: 웹 산출물 업로드
         uses: actions/upload-pages-artifact@v3
