@@ -1,11 +1,27 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
+    <script>
+      // 브라우저 실행 시 Electron 전용 API 충돌 방지 Mock 객체
+      window.electron = window.electron || {
+        ipcRenderer: {
+          on: function() {},
+          off: function() {},
+          send: function() {},
+          invoke: function() { return Promise.resolve(null); }
+        }
+      };
+      window.api = window.api || {
+        armContextMenu: function() {},
+        onLanguageChanged: function() {},
+        getSystemTheme: function() { return 'light'; },
+        onThemeChanged: function() {},
+        openExternal: function(url) { window.open(url, '_blank'); },
+        readFile: function() { return Promise.resolve(null); },
+        writeFile: function() { return Promise.resolve(true); }
+      };
+    </script>
     <meta charset="UTF-8" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: genoffice-docx-media:; font-src 'self' data: blob: genoffice-docx-media:; worker-src 'self' blob:; connect-src 'self' ws://localhost:* genoffice-docx-media:"
-    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IeumOffice Docs</title>
   </head>
