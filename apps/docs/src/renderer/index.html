@@ -1,27 +1,34 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
+    <meta charset="UTF-8" />
     <script>
-      // 브라우저 실행 시 Electron 전용 API 충돌 방지 Mock 객체
-      window.electron = window.electron || {
-        ipcRenderer: {
-          on: function() {},
-          off: function() {},
-          send: function() {},
-          invoke: function() { return Promise.resolve(null); }
+      // 브라우저 실행 시 Electron 전용 desktop API 충돌 방지 Mock 객체
+      const noop = () => {};
+      const mockHandler = {
+        get(target, prop) {
+          if (prop in target) return target[prop];
+          if (typeof prop === 'string' && prop.startsWith('on')) {
+            return () => noop;
+          }
+          return () => Promise.resolve(null);
         }
       };
-      window.api = window.api || {
-        armContextMenu: function() {},
-        onLanguageChanged: function() {},
-        getSystemTheme: function() { return 'light'; },
-        onThemeChanged: function() {},
-        openExternal: function(url) { window.open(url, '_blank'); },
-        readFile: function() { return Promise.resolve(null); },
-        writeFile: function() { return Promise.resolve(true); }
-      };
+
+      window.desktop = new Proxy({
+        armContextMenu: noop,
+        onContextMenuRequest: () => noop,
+        onLanguageChanged: () => noop,
+        getSystemTheme: () => 'light',
+        onThemeChanged: () => noop,
+        openExternal: (url) => window.open(url, '_blank'),
+        readFile: () => Promise.resolve(null),
+        writeFile: () => Promise.resolve(true),
+      }, mockHandler);
+
+      window.api = window.desktop;
+      window.electron = window.desktop;
     </script>
-    <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IeumOffice Docs</title>
   </head>
