@@ -26,16 +26,16 @@ jobs:
         with:
           node-version: 20
 
-      - name: 앱 설치 및 웹 번들 빌드
+      - name: 의존성 설치 및 렌더러 웹 빌드
         run: |
           cd apps/docs
-          npm install
-          npx vite build --base=./
+          npm install --legacy-peer-deps
+          npx vite build src/renderer --base=./ --outDir=../../dist
 
       - name: 웹 산출물 업로드
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./apps/docs/dist
+          path: ./dist
 
   deploy:
     environment:
