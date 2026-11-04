@@ -4,37 +4,45 @@
     <meta charset="UTF-8" />
     <script>
       (function() {
-        // 1. 재귀적 만능 프록시: 어떤 프로퍼티/메서드가 호출되어도 에러 없이 안전한 값을 반환
         const noop = () => {};
-        
-        function createSafeProxy(name = 'root') {
-          const baseTarget = Object.assign(() => Promise.resolve(createSafeProxy()), {
-            queuePlaceholder: "문서를 편집하세요...",
-            placeholder: "입력하세요...",
-            name: "Default",
-            id: "default",
-            provider: "custom",
-            customEndpoint: "",
-            customEndpoints: [],
-            model: "default",
-            modelProfiles: {},
-            theme: "light",
-            language: "ko"
-          });
 
-          return new Proxy(baseTarget, {
+        // 가짜 데이터 사전 (함수 객체에 직접 assign하지 않고 분리하여 읽기 전용 충돌 방지)
+        const defaultValues = {
+          queuePlaceholder: "문서를 편집하세요...",
+          placeholder: "입력하세요...",
+          name: "Default",
+          id: "default",
+          provider: "custom",
+          customEndpoint: "",
+          customEndpoints: [],
+          model: "default",
+          modelProfiles: {},
+          theme: "light",
+          language: "ko"
+        };
+
+        function createSafeProxy(proxyName = 'root') {
+          const dummyFn = function() {
+            return Promise.resolve(createSafeProxy());
+          };
+
+          return new Proxy(dummyFn, {
             get(target, prop) {
               if (prop === Symbol.toPrimitive || prop === 'toString') return () => "";
               if (prop === 'valueOf') return () => 0;
-              if (prop === 'then') return undefined; // Promise 체인 오작동 방지
-              if (prop in target) return target[prop];
+              if (prop === 'then') return undefined; // Promise 체인 오작동 차단
 
-              // 이벤트 리스너 해제 함수(cleanup) 대응
+              // 기본 설정값 반환
+              if (typeof prop === 'string' && prop in defaultValues) {
+                return defaultValues[prop];
+              }
+
+              // React useEffect 내 리스너 해제 함수(cleanup) 대응
               if (typeof prop === 'string' && prop.startsWith('on')) {
                 return () => noop;
               }
 
-              return createSafeProxy(`${name}.${String(prop)}`);
+              return createSafeProxy(`${proxyName}.${String(prop)}`);
             },
             apply(target, thisArg, argArray) {
               return Promise.resolve(createSafeProxy());
@@ -42,14 +50,14 @@
           });
         }
 
-        const universalMock = createSafeProxy('desktop');
+        const safeDesktop = createSafeProxy('desktop');
 
-        // 2. 브라우저 전역 객체 바인딩
-        window.desktop = universalMock;
-        window.api = universalMock;
-        window.electron = universalMock;
+        // 전역 객체 바인딩
+        window.desktop = safeDesktop;
+        window.api = safeDesktop;
+        window.electron = safeDesktop;
 
-        // 3. 프로토타입 수준 방어막 (Q9[E] 등 배열/객체 직접 인덱싱 오류 방지)
+        // Q9[E] 인덱싱 에러 프로토타입 방어막
         try {
           Object.defineProperty(Object.prototype, "queuePlaceholder", {
             get() { return "문서를 편집하세요..."; },
@@ -58,7 +66,7 @@
           });
         } catch (e) {}
 
-        // 4. 로컬 스토리지 초기화 방어
+        // 로컬스토리지 기본값 주입
         try {
           localStorage.setItem('theme', 'light');
           localStorage.setItem('locale', 'ko');
