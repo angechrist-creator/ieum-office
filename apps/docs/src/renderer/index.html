@@ -4,6 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IeumOffice Docs</title>
+    <script>
+      /* 웹 브라우저용 최소 호환층 (임시 진단용)
+         - 설치형(Electron)에서는 진짜 window.desktop이 있으므로 아무것도 하지 않습니다.
+         - 확인된 기능 5개만 구현하고, 그 밖의 호출은 콘솔에 경고를 남깁니다. */
+      (function () {
+        "use strict";
+        if (window.desktop) return;
+
+        var noop = function () {};
+        // on... 등록 함수는 '해제 함수'를 돌려줘야 React가 정상 동작합니다.
+        var unsubscribe = function () { return noop; };
+
+        var known = {
+          armContextMenu: noop,
+          onContextMenuRequest: unsubscribe,
+          onLanguageChanged: unsubscribe,
+          onViewImage: unsubscribe,
+          saveImageAs: function () {
+            console.warn("[웹 호환] 이미지 저장 기능은 웹에서 지원되지 않습니다.");
+          }
+        };
+
+        var warned = {};
+        window.desktop = new Proxy(known, {
+          get: function (target, prop) {
+            if (prop in target) return target[prop];
+            if (typeof prop !== "string" || prop === "then" || prop === "toJSON") return undefined;
+            if (!warned[prop]) {
+              warned[prop] = true;
+              console.warn("[웹 호환] 아직 연결되지 않은 desktop 기능이 호출됨:", prop);
+            }
+            if (/^on[A-Z]/.test(prop)) return unsubscribe;
+            return function () { return Promise.resolve(undefined); };
+          }
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
