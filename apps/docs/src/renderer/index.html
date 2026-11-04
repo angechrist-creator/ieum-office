@@ -3,15 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <script>
-      // 브라우저 실행 시 Electron 전용 desktop API 충돌 방지 Mock 객체
+      // 1. 브라우저 실행 시 Electron 전용 desktop API 충돌 방지 Mock 객체
       const noop = () => {};
-      
-      // 앱이 요구하는 기본 AI 및 앱 설정 (기본 provider: openai)
+
+      // 2. Q9[E]에 없는 AI 이름이 들어와도 queuePlaceholder 오류가 나지 않도록 프로토타입 방어막 주입
+      const defaultAIProvider = {
+        queuePlaceholder: "AI 요청을 입력하세요...",
+        placeholder: "AI 요청을 입력하세요...",
+        name: "AI",
+        id: "default"
+      };
+      ["none", "openai", "custom", "local", "anthropic", "gemini", "ollama", "", "undefined", "null"].forEach(key => {
+        try {
+          Object.defineProperty(Object.prototype, key, {
+            value: defaultAIProvider,
+            writable: true,
+            configurable: true
+          });
+        } catch (e) {}
+      });
+
+      // 3. 앱이 요구하는 기본 설정 객체
       const defaultSettings = {
-        provider: "openai",
+        provider: "custom",
         customEndpoint: "",
         customEndpoints: [],
-        model: "gpt-4o",
+        model: "",
         modelProfiles: {},
         language: "ko",
         theme: "light"
@@ -48,11 +65,6 @@
 
       window.api = window.desktop;
       window.electron = window.desktop;
-
-      // 브라우저에 남아있는 이전 캐시 설정을 openai로 덮어쓰기
-      try {
-        localStorage.setItem('ai_config', JSON.stringify(defaultSettings));
-      } catch (e) {}
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IeumOffice Docs</title>
