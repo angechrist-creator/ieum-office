@@ -1,70 +1,70 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="ko">
   <head>
     <meta charset="UTF-8" />
     <script>
-      // 1. 브라우저 실행 시 Electron 전용 desktop API 충돌 방지 Mock 객체
-      const noop = () => {};
+      (function() {
+        // 1. 어떤 속성을 호출해도 에러 없이 자기 자신 또는 안전한 값을 무한 반환하는 만능 프록시 팩토리
+        function createDeepProxy(name = 'root') {
+          const noop = () => {};
+          const dummyTarget = Object.assign(() => Promise.resolve(createDeepProxy()), {
+            queuePlaceholder: "문서를 편집하거나 AI에게 요청하세요...",
+            placeholder: "명령어를 입력하세요...",
+            name: "Default",
+            id: "default",
+            model: "default-model",
+            provider: "custom",
+            customEndpoint: "",
+            customEndpoints: [],
+            modelProfiles: {},
+            theme: "light",
+            language: "ko"
+          });
 
-      // 2. Q9[E]에 없는 AI 이름이 들어와도 queuePlaceholder 오류가 나지 않도록 프로토타입 방어막 주입
-      const defaultAIProvider = {
-        queuePlaceholder: "AI 요청을 입력하세요...",
-        placeholder: "AI 요청을 입력하세요...",
-        name: "AI",
-        id: "default"
-      };
-      ["none", "openai", "custom", "local", "anthropic", "gemini", "ollama", "", "undefined", "null"].forEach(key => {
+          return new Proxy(dummyTarget, {
+            get(target, prop) {
+              if (prop === Symbol.toPrimitive || prop === 'toString') return () => "";
+              if (prop === 'valueOf') return () => 0;
+              if (prop === 'then') return undefined; // Promise 체이닝 오작동 방지
+              if (prop in target) return target[prop];
+
+              // 이벤트 리스너 해제 함수(cleanup) 대응
+              if (typeof prop === 'string' && prop.startsWith('on')) {
+                return () => noop;
+              }
+
+              // 그 외 모든 하위 프로퍼티 조회에 대해 다시 깊은 프록시 반환
+              return createDeepProxy(`${name}.${String(prop)}`);
+            },
+            apply(target, thisArg, argArray) {
+              // 함수로 실행될 경우 항상 안전한 Promise 또는 프록시 반환
+              return Promise.resolve(createDeepProxy());
+            }
+          });
+        }
+
+        const universalMock = createDeepProxy('desktop');
+
+        // 2. 브라우저 전역 객체 완전 방어
+        window.desktop = universalMock;
+        window.api = universalMock;
+        window.electron = universalMock;
+
+        // 3. Q9[E] 같은 객체 인덱싱 에러 원천 차단 (프로토타입 수준 방어)
         try {
-          Object.defineProperty(Object.prototype, key, {
-            value: defaultAIProvider,
-            writable: true,
+          Object.defineProperty(Object.prototype, "queuePlaceholder", {
+            get() { return "문서를 편집하거나 AI에게 요청하세요..."; },
+            set() {},
             configurable: true
           });
         } catch (e) {}
-      });
 
-      // 3. 앱이 요구하는 기본 설정 객체
-      const defaultSettings = {
-        provider: "custom",
-        customEndpoint: "",
-        customEndpoints: [],
-        model: "",
-        modelProfiles: {},
-        language: "ko",
-        theme: "light"
-      };
-
-      const mockHandler = {
-        get(target, prop) {
-          if (prop in target) return target[prop];
-          
-          if (typeof prop === 'string' && prop.startsWith('on')) {
-            return () => noop;
-          }
-          
-          if (typeof prop === 'string' && (prop.startsWith('get') || prop.includes('Config') || prop.includes('Setting'))) {
-            return () => Promise.resolve(defaultSettings);
-          }
-
-          return () => Promise.resolve({});
-        }
-      };
-
-      window.desktop = new Proxy({
-        armContextMenu: noop,
-        onContextMenuRequest: () => noop,
-        onLanguageChanged: () => noop,
-        getSystemTheme: () => 'light',
-        onThemeChanged: () => noop,
-        openExternal: (url) => window.open(url, '_blank'),
-        readFile: () => Promise.resolve(null),
-        writeFile: () => Promise.resolve(true),
-        getSettings: () => Promise.resolve(defaultSettings),
-        getConfig: () => Promise.resolve(defaultSettings),
-      }, mockHandler);
-
-      window.api = window.desktop;
-      window.electron = window.desktop;
+        // 4. 로컬 스토리지 클린업
+        try {
+          localStorage.setItem('theme', 'light');
+          localStorage.setItem('locale', 'ko');
+        } catch (e) {}
+      })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IeumOffice Docs</title>
