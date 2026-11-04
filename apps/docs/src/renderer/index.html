@@ -5,29 +5,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IeumOffice Docs</title>
     <script>
-      /* 웹 브라우저용 최소 호환층 (임시 진단용)
+      /* 웹 브라우저용 임시 호환층 (진단용)
          - 설치형(Electron)에서는 진짜 window.desktop이 있으므로 아무것도 하지 않습니다.
-         - 확인된 기능 5개만 구현하고, 그 밖의 호출은 콘솔에 경고를 남깁니다. */
+         - 앱이 실제로 부른 함수 이름을 캡처 그대로 옮겼습니다(대소문자 구분).
+         - 모르는 함수가 호출되면 콘솔에 노란 경고로 알려 줍니다. */
       (function () {
         "use strict";
         if (window.desktop) return;
 
         var noop = function () {};
+        var resolved = function () { return Promise.resolve(undefined); };
         // on... 등록 함수는 '해제 함수'를 돌려줘야 React가 정상 동작합니다.
         var unsubscribe = function () { return noop; };
 
-        var known = {
-          armContextMenu: noop,
+        /* ★ 추측값 모음: 소스를 아직 확인하지 못해 추측한 값입니다.
+           다음 오류에서 이 값이 문제로 드러나면 여기만 고치면 됩니다. */
+        var AI_PROVIDER = "openai"; // "none", "auto" 등으로 바꿔 볼 수 있음
+
+        var aiSettings = {
+          provider: AI_PROVIDER,
+          model: "",
+          customEndpoint: "",
+          customEndpoints: [],
+          modelProfiles: {}
+        };
+
+        var bridge = {
+          /* 값을 돌려주는 질문 */
+          getLanguage: function () { return Promise.resolve("ko"); },
+          getSystemLocale: function () { return Promise.resolve("ko-KR"); },
+          getTheme: function () { return Promise.resolve("light"); },
+          getDocumentTheme: function () { return Promise.resolve("light"); },
+          getAiSettings: function () { return Promise.resolve(aiSettings); },
+          getAiPanelPrefs: function () { return Promise.resolve({ open: false, width: 320 }); },
+          getAuthorName: function () { return Promise.resolve("User"); },
+          getAutoSaveDefault: function () { return Promise.resolve(false); },
+          getRecentFiles: function () { return Promise.resolve([]); },
+          kbList: function () { return Promise.resolve([]); },
+          fontFamilyInfo: function () { return Promise.resolve([]); },
+          consumePendingOpenDocx: function () { return Promise.resolve(null); },
+          consumeNewBlankDoc: function () { return Promise.resolve(null); },
+          consumeAiDocContent: function () { return Promise.resolve(null); },
+          consumeDocCopy: function () { return Promise.resolve(null); },
+          consumeHeadlessExport: function () { return Promise.resolve(null); },
+          convertAltChunkHtml: function () { return Promise.resolve(""); },
+          spellDiag: function () { return Promise.resolve({ ok: true, errors: [] }); },
+
+          /* 알림을 받겠다는 등록 (해제 함수를 돌려줌) */
           onContextMenuRequest: unsubscribe,
           onLanguageChanged: unsubscribe,
+          onThemeChanged: unsubscribe,
+          onDocumentThemeChanged: unsubscribe,
+          onAiPanelPrefsChanged: unsubscribe,
+          onAuthorNameChanged: unsubscribe,
+          onAutoSaveDefaultChanged: unsubscribe,
+          onAiSettingsChanged: unsubscribe,
           onViewImage: unsubscribe,
+          onTeardown: unsubscribe,
+          onWriteRecoveryNow: unsubscribe,
+          onRecoveryCopyDropped: unsubscribe,
+          onMcpCommand: unsubscribe,
+          onRenamedDocx: unsubscribe,
+          onOpenDocx: unsubscribe,
+          onZoteroRequest: unsubscribe,
+          onCloseCheck: unsubscribe,
+          onCloseSaveRequest: unsubscribe,
+          onMenuCommand: unsubscribe,
+
+          /* 앱 본체에 알려만 주는 호출 */
+          armContextMenu: resolved,
+          reportViewMenuState: resolved,
+          reportMcpResult: resolved,
+          signalMcpReady: resolved,
+          docPasswordIntentRevision: resolved,
+          discardDocPasswordIntents: resolved,
           saveImageAs: function () {
-            console.warn("[웹 호환] 이미지 저장 기능은 웹에서 지원되지 않습니다.");
+            console.warn("[웹 호환] 이미지 저장은 아직 웹에서 지원되지 않습니다.");
+            return Promise.resolve(false);
           }
         };
 
         var warned = {};
-        window.desktop = new Proxy(known, {
+        window.desktop = new Proxy(bridge, {
           get: function (target, prop) {
             if (prop in target) return target[prop];
             if (typeof prop !== "string" || prop === "then" || prop === "toJSON") return undefined;
@@ -35,8 +94,7 @@
               warned[prop] = true;
               console.warn("[웹 호환] 아직 연결되지 않은 desktop 기능이 호출됨:", prop);
             }
-            if (/^on[A-Z]/.test(prop)) return unsubscribe;
-            return function () { return Promise.resolve(undefined); };
+            return /^on[A-Z]/.test(prop) ? unsubscribe : resolved;
           }
         });
       })();
