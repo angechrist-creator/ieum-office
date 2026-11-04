@@ -4,28 +4,29 @@
     <meta charset="UTF-8" />
     <script>
       (function() {
-        // 1. 어떤 속성을 호출해도 에러 없이 자기 자신 또는 안전한 값을 무한 반환하는 만능 프록시 팩토리
-        function createDeepProxy(name = 'root') {
-          const noop = () => {};
-          const dummyTarget = Object.assign(() => Promise.resolve(createDeepProxy()), {
-            queuePlaceholder: "문서를 편집하거나 AI에게 요청하세요...",
-            placeholder: "명령어를 입력하세요...",
+        // 1. 재귀적 만능 프록시: 어떤 프로퍼티/메서드가 호출되어도 에러 없이 안전한 값을 반환
+        const noop = () => {};
+        
+        function createSafeProxy(name = 'root') {
+          const baseTarget = Object.assign(() => Promise.resolve(createSafeProxy()), {
+            queuePlaceholder: "문서를 편집하세요...",
+            placeholder: "입력하세요...",
             name: "Default",
             id: "default",
-            model: "default-model",
             provider: "custom",
             customEndpoint: "",
             customEndpoints: [],
+            model: "default",
             modelProfiles: {},
             theme: "light",
             language: "ko"
           });
 
-          return new Proxy(dummyTarget, {
+          return new Proxy(baseTarget, {
             get(target, prop) {
               if (prop === Symbol.toPrimitive || prop === 'toString') return () => "";
               if (prop === 'valueOf') return () => 0;
-              if (prop === 'then') return undefined; // Promise 체이닝 오작동 방지
+              if (prop === 'then') return undefined; // Promise 체인 오작동 방지
               if (prop in target) return target[prop];
 
               // 이벤트 리스너 해제 함수(cleanup) 대응
@@ -33,33 +34,31 @@
                 return () => noop;
               }
 
-              // 그 외 모든 하위 프로퍼티 조회에 대해 다시 깊은 프록시 반환
-              return createDeepProxy(`${name}.${String(prop)}`);
+              return createSafeProxy(`${name}.${String(prop)}`);
             },
             apply(target, thisArg, argArray) {
-              // 함수로 실행될 경우 항상 안전한 Promise 또는 프록시 반환
-              return Promise.resolve(createDeepProxy());
+              return Promise.resolve(createSafeProxy());
             }
           });
         }
 
-        const universalMock = createDeepProxy('desktop');
+        const universalMock = createSafeProxy('desktop');
 
-        // 2. 브라우저 전역 객체 완전 방어
+        // 2. 브라우저 전역 객체 바인딩
         window.desktop = universalMock;
         window.api = universalMock;
         window.electron = universalMock;
 
-        // 3. Q9[E] 같은 객체 인덱싱 에러 원천 차단 (프로토타입 수준 방어)
+        // 3. 프로토타입 수준 방어막 (Q9[E] 등 배열/객체 직접 인덱싱 오류 방지)
         try {
           Object.defineProperty(Object.prototype, "queuePlaceholder", {
-            get() { return "문서를 편집하거나 AI에게 요청하세요..."; },
+            get() { return "문서를 편집하세요..."; },
             set() {},
             configurable: true
           });
         } catch (e) {}
 
-        // 4. 로컬 스토리지 클린업
+        // 4. 로컬 스토리지 초기화 방어
         try {
           localStorage.setItem('theme', 'light');
           localStorage.setItem('locale', 'ko');
